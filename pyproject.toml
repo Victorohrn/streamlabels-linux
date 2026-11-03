@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "streamlabels"
+version = "0.1.0"
+description = "Streamlabs Stream Labels replacement for Linux: writes live stream-stat text files for OBS"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["python-socketio[client]>=5.11,<6"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "werkzeug>=3"]
+
+[project.scripts]
+streamlabels = "streamlabels.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["streamlabels*"]

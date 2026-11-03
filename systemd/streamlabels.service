@@ -1,0 +1,17 @@
+[Unit]
+Description=Stream Labels for Linux (keeps OBS label text files up to date)
+Documentation=https://github.com/victorohrn/streamlabels-linux
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=@APP@/venv/bin/streamlabels run
+ExecReload=/bin/kill -USR1 $MAINPID
+Restart=on-failure
+RestartSec=5
+# socket token lives in the config; keep the service modest
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target
