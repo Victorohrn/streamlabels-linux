@@ -112,7 +112,8 @@ def parse_event(payload: dict, *, count_test_events: bool, twitch_relay: bool,
                 continue
             is_gift = sub_type in ("subgift", "anonsubgift") or bool(gifter)
             is_resub = sub_type == "resub" or (months > 1 and not is_gift)
-            out.append(Event(SUBSCRIPTION, name, months=months, is_gift=is_gift, is_resub=is_resub, **base))
+            out.append(Event(SUBSCRIPTION, name, months=months, is_gift=is_gift, is_resub=is_resub,
+                             tier=str(item.get("sub_plan") or ""), **base))
             if is_gift:
                 who = gifter or "Anonymous"
                 if gift_memory.get(who, 0.0) < now:

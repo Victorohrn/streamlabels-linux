@@ -175,10 +175,12 @@ def parse_notification(sub_type: str, ev: dict) -> Event | None:
     if sub_type == "channel.follow":
         return Event(FOLLOW, name, source="twitch") if name else None
     if sub_type == "channel.subscribe":
-        return Event(SUBSCRIPTION, name, months=1, is_gift=bool(ev.get("is_gift")), source="twitch") if name else None
+        return Event(SUBSCRIPTION, name, months=1, is_gift=bool(ev.get("is_gift")), tier=str(ev.get("tier") or ""),
+                     source="twitch") if name else None
     if sub_type == "channel.subscription.message":
         return Event(SUBSCRIPTION, name, months=int(ev.get("cumulative_months") or 1), is_resub=True,
-                     message=str(ev.get("message", {}).get("text", "")), source="twitch") if name else None
+                     tier=str(ev.get("tier") or ""), message=str((ev.get("message") or {}).get("text", "")),
+                     source="twitch") if name else None
     if sub_type == "channel.subscription.gift":
         return Event(SUB_GIFT, "Anonymous" if anon or not name else name,
                      amount=int(ev.get("total") or 1), source="twitch")

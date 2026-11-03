@@ -62,6 +62,7 @@ class Config:
     amount_format: str = "{amount:.2f} {currency}"
     include_resubs: bool = True
     session_reset_on_start: bool = True
+    train_duration: int = 300
     log_level: str = "INFO"
     formats: dict[str, str] = field(default_factory=dict)
     streamlabs: StreamlabsConfig = field(default_factory=StreamlabsConfig)
@@ -94,7 +95,7 @@ def load_config(path: Path | None = None) -> Config:
     if "state_file" in raw:
         cfg.state_file = _expand(raw["state_file"])
     for key in ("list_separator", "list_limit", "amount_format", "include_resubs",
-                "session_reset_on_start", "log_level"):
+                "session_reset_on_start", "train_duration", "log_level"):
         if key in raw:
             setattr(cfg, key, raw[key])
     cfg.formats = {str(k): str(v) for k, v in raw.get("formats", {}).items()}
@@ -134,6 +135,10 @@ include_resubs = true
 # You can also reset at any time with: streamlabels reset-session
 session_reset_on_start = true
 
+# Trains (followtrain_*, subtrain_*, donationtrain_*): events closer together than this many
+# seconds chain into one train; the clock counts down from here after the last event.
+train_duration = 300
+
 [streamlabs]
 enabled = true
 # Streamlabs dashboard -> Settings -> API Settings -> API Tokens -> "Your Socket API Token"
@@ -154,8 +159,9 @@ poll_interval = 600
 
 [formats]
 # Override how any label is rendered. Tokens: {name} {amount} {currency} {formatted}
-# {months} {viewers} {bits} {count}. Unknown tokens are left as-is. Examples:
+# {months} {viewers} {bits} {count}. Unknown tokens are left as-is. Defaults match the official
+# app ("name: amount" for tops, "name gifted N times" for gifters, bare name for most_recent_*). Examples:
 #most_recent_donator = "{name} - {formatted}"
-#session_top_donator = "{name} ({formatted})"
-#most_recent_subscriber = "{name} x{months}"
+#all_time_top_donator = "{name}"
+#session_top_subscriber = "{name} ({months} months)"
 """

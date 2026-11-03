@@ -16,36 +16,43 @@ to the same Streamlabs socket that Streamlabs Desktop uses, and optionally to Tw
 ## What you get
 
 A `StreamLabels` folder (default `~/Documents/StreamLabels`, localised, e.g. `~/Dokument/StreamLabels`)
-with one `.txt` per label. File names follow the Streamlabs Desktop names, so scenes built on
-Windows keep working.
+with one `.txt` per label, about 150 files. Names and default formats follow the official Stream Labels
+app, so a scene built on Windows keeps working with the same file names.
 
-| Followers | Subscribers | Sub gifters |
-|---|---|---|
-| most_recent_follower | most_recent_subscriber | most_recent_sub_gifter |
-| session_most_recent_follower | session_most_recent_subscriber | session_most_recent_sub_gifter |
-| session_followers (list) | session_subscribers (list) | session_sub_gifters (list) |
-| session_follower_count | session_subscriber_count | session_sub_gifter_count |
-| total_follower_count * | total_subscriber_count * | session_gifted_sub_count |
-| | | session_top_sub_gifter, all_time_top_sub_gifter |
+For each period `session_`, `weekly_`, `monthly_`, `30day_` and `all_time_`:
 
-| Tips (Streamlabs donations) | Bits / cheers | Raids |
-|---|---|---|
-| most_recent_donator, most_recent_donation_amount | most_recent_cheerer, most_recent_cheer_amount | most_recent_raider, most_recent_raid_viewers |
-| session_most_recent_donator | session_most_recent_cheerer | session_most_recent_raider |
-| session_donators (list), session_donator_count | session_cheerers (list), session_cheerer_count | session_raiders (list), session_raider_count |
-| session_donation_amount | session_bits_amount | session_top_raider |
-| session_top_donator, session_top_donation | session_top_cheerer, session_top_cheer | |
-| session_biggest_donation | | |
-| all_time_top_donator, all_time_top_donation | all_time_top_cheerer, all_time_top_cheer | |
-| 30day_top_donator, 30day_top_donation | 30day_top_cheerer | |
-| total_donation_amount | | |
+| Tips | Bits | Subs | Gifted subs |
+|---|---|---|---|
+| `*_top_donator` ("name: $5.00") | `*_top_cheerer` ("name: 500") | `*_top_subscriber` ("name: months") | `*_top_sub_gifter` ("name gifted 3 times") |
+| `*_top_donators` (list, per person) | `*_top_cheerers` (list) | `*_top_subscribers` (list) | `*_top_sub_gifters` (list) |
+| `*_top_donations` (biggest single tips) | `*_top_cheers` (biggest single cheers) | `*_subscriber_count` | `*_gifted_sub_count` |
+| `*_donation_amount` (sum) | `*_cheer_amount` (sum) | `*_subscriber_score` (sub points) | |
 
-`*` needs the optional Twitch connection (see below). "Top" means the highest *cumulative* amount
-per person in that window. "All time" and "30 day" count from when you first ran the daemon,
-unless Streamlabs sends its own ready-made values (see *How it works*).
+Plus:
 
-Any label can be reformatted in the config, e.g. `most_recent_donator = "{name} - {formatted}"`.
-Run `streamlabels test` to fill every file with sample values while you lay out your scene.
+* `most_recent_follower`, `most_recent_subscriber`, `most_recent_resubscriber`, `most_recent_sub_gifter`,
+  `most_recent_donator`, `most_recent_donation_amount`, `most_recent_cheerer`, `most_recent_cheer_amount`,
+  `most_recent_raider`, `most_recent_raid_viewers`
+* session lists and counts: `session_followers`, `session_follower_count`, `session_subscribers`,
+  `session_resubscribers`, `session_sub_gifters`, `session_donators`, `session_cheerers`, `session_raiders`,
+  `session_most_recent_*` for each, `session_top_raider`
+* totals: `total_cheer_amount`, `total_donation_amount`, `total_subscriber_score`,
+  `total_follower_count` *, `total_subscriber_count` *
+* trains: `followtrain_clock/counter/latest_follower`, `subtrain_clock/counter/latest_sub`,
+  `donationtrain_clock/counter/latest_donator/latest_amount/total_amount` (`train_duration`, default 5 min)
+
+`*` needs the optional Twitch connection (see below). "Top" means the highest *cumulative* amount per
+person in that window; `*_top_donations` / `*_top_cheers` rank single events. Weekly and monthly are
+calendar windows (Monday, 1st); 30day is rolling.
+
+Any label can be reformatted in the config, e.g. `all_time_top_donator = "{name}"` or
+`most_recent_donator = "{name} - {formatted}"`. Run `streamlabels test` to fill every file with sample
+values while you lay out your scene (existing files are backed up to `.before-test/` first).
+
+**Already have a Stream Labels folder from Windows?** Point `output_dir` at it. On first start the daemon
+reads it: every old file stays as a fallback value, and the all-time top tipper/cheerer/gifter lists are
+parsed into history so the all-time stats keep counting from your real totals instead of from zero.
+(`streamlabels import-legacy [dir]` does the same by hand.)
 
 ## How it works
 

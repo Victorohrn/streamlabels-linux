@@ -106,6 +106,12 @@ class Daemon:
     def run(self) -> None:
         cfg = self.cfg
         self.state.load()
+        if not self.state.data.get("legacy_imported"):
+            found = self.state.import_legacy(cfg.output_dir)
+            if found["labels"]:
+                log.info("imported existing label folder: %d files, %d tips, %d cheers, %d gifted subs "
+                         "carried into the all-time stats", found["labels"], found["donations"],
+                         found["bits"], found["gifts"])
         if cfg.session_reset_on_start:
             self.state.reset_session()
         self._install_signals()
@@ -116,9 +122,10 @@ class Daemon:
         try:
             while not self._stopping:
                 try:
-                    item = self.q.get(timeout=30)
+                    # 1 s ticks keep the train clocks moving; otherwise a slow refresh keeps
+                    # the time-windowed labels (weekly_/monthly_/30day_) honest
+                    item = self.q.get(timeout=1 if self.state.train_active(cfg) else 30)
                 except queue.Empty:
-                    # periodic refresh keeps time-windowed labels (30day_*) honest
                     self.flush()
                     continue
                 self.handle(item)

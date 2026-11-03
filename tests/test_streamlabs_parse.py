@@ -66,3 +66,9 @@ def test_other_platforms_and_noise_ignored():
     assert P({"type": "alertPlaying", "message": {"type": "follow"}}) == []
     assert P("garbage") == []
     assert P({"type": "subscription", "for": "twitch_account", "message": "oops"}) == []
+
+
+def test_sub_plan_becomes_tier():
+    [sub] = P({"type": "subscription", "for": "twitch_account",
+               "message": [{"name": "s", "months": 1, "sub_plan": "3000", "sub_type": "sub"}]})
+    assert sub.tier == "3000"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import shutil
 import signal
 import sys
 import tempfile
@@ -61,10 +62,10 @@ def cmd_run(args) -> int:
 
 SAMPLE_EVENTS = [
     Event(FOLLOW, "NewFollower"),
-    Event(SUBSCRIPTION, "LoyalViewer", months=1),
-    Event(SUBSCRIPTION, "ReturningFan", months=7, is_resub=True),
+    Event(SUBSCRIPTION, "LoyalViewer", months=1, tier="1000"),
+    Event(SUBSCRIPTION, "ReturningFan", months=7, is_resub=True, tier="2000"),
     Event(SUB_GIFT, "GenerousGifter", amount=5),
-    Event(SUBSCRIPTION, "LuckyRecipient", months=1, is_gift=True),
+    Event(SUBSCRIPTION, "LuckyRecipient", months=1, is_gift=True, tier="1000"),
     Event(DONATION, "BigTipper", amount=25.0, currency="SEK", formatted_amount="25,00 kr"),
     Event(DONATION, "SmallTipper", amount=5.0, currency="SEK", formatted_amount="5,00 kr"),
     Event(BITS, "BitsCheerer", amount=500),
@@ -82,8 +83,21 @@ def cmd_test(args) -> int:
     state.seed_totals(follower_count=1234, subscriber_count=56)
     writer = LabelWriter(cfg.output_dir)
     labels = state.labels(cfg)
+    # keep whatever was there (e.g. files from the Windows app) so nothing real is lost
+    backup = cfg.output_dir / ".before-test"
+    saved = 0
+    for key in labels:
+        src = writer.path(key)
+        if src.exists() and not (backup / src.name).exists():
+            backup.mkdir(exist_ok=True)
+            shutil.copy2(src, backup / src.name)
+            saved += 1
+    marker = cfg.output_dir / ".test-written"
+    marker.write_text("\n".join(sorted(set(labels) | set(marker.read_text().split() if marker.exists() else []))))
     writer.write_all(labels)
     print(f"wrote {len(labels)} sample label files to {cfg.output_dir}")
+    if saved:
+        print(f"backed up {saved} existing file(s) to {backup}")
     print("(the running daemon will overwrite them with real values on its next update)")
     for key in sorted(labels):
         print(f"  {key}.txt = {labels[key]!r}")
@@ -138,6 +152,21 @@ def cmd_twitch_login(args) -> int:
     return 0
 
 
+def cmd_import_legacy(args) -> int:
+    """Pull history out of an existing Stream Labels folder (e.g. copied from Windows)."""
+    cfg = _cfg(args)
+    src = Path(args.dir).expanduser() if args.dir else cfg.output_dir
+    state = LabelState(cfg.state_file)
+    state.load()
+    found = state.import_legacy(src)
+    state.save()
+    print(f"imported from {src}: {found['labels']} label files kept as fallbacks; "
+          f"{found['donations']} tips, {found['bits']} cheers and {found['gifts']} gifted-sub entries "
+          f"carried into the all-time stats")
+    LabelWriter(cfg.output_dir).write_all(state.labels(cfg))
+    return 0
+
+
 def cmd_paths(args) -> int:
     cfg = _cfg(args)
     print(f"config:     {Path(args.config).expanduser() if args.config else CONFIG_PATH}")
@@ -166,6 +195,9 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("twitch-login", help="log in to Twitch with a device code")
     s.add_argument("--client-id")
     s.set_defaults(fn=cmd_twitch_login)
+    s = sub.add_parser("import-legacy", help="import history from an existing Stream Labels folder")
+    s.add_argument("dir", nargs="?", help="folder to read (default: output_dir)")
+    s.set_defaults(fn=cmd_import_legacy)
     sub.add_parser("paths", help="print the files this tool uses").set_defaults(fn=cmd_paths)
 
     args = p.parse_args(argv)

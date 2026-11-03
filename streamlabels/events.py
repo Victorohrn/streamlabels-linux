@@ -24,6 +24,7 @@ class Event:
     currency: str = ""
     formatted_amount: str = ""
     months: int = 0
+    tier: str = ""  # Twitch sub tier: 1000 / 2000 / 3000 / prime
     is_gift: bool = False  # subscription that was gifted *to* `name`
     is_resub: bool = False
     message: str = ""
@@ -40,6 +41,7 @@ class Event:
             "currency": self.currency,
             "formatted": self.formatted_amount,
             "months": self.months,
+            "tier": self.tier,
             "is_gift": self.is_gift,
             "is_resub": self.is_resub,
         }
