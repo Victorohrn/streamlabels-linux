@@ -80,7 +80,7 @@ Files are written atomically; OBS re-reads a file about once a second.
 Requires Python 3.11+ (CachyOS/Arch: `sudo pacman -S python`), `git`, and OBS with a text source.
 
 ```bash
-git clone https://github.com/victorohrn/streamlabels-linux ~/streamlabels-linux   # or copy this folder anywhere
+git clone https://github.com/Victorohrn/streamlabels-linux ~/streamlabels-linux   # or copy this folder anywhere
 ~/streamlabels-linux/install.sh
 ```
 

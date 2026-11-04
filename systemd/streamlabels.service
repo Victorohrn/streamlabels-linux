@@ -1,6 +1,6 @@
 [Unit]
 Description=Stream Labels for Linux (keeps OBS label text files up to date)
-Documentation=https://github.com/victorohrn/streamlabels-linux
+Documentation=https://github.com/Victorohrn/streamlabels-linux
 After=network-online.target
 Wants=network-online.target
 
