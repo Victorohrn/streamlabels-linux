@@ -45,16 +45,27 @@ def _i(v, default=0) -> int:
         return default
 
 
+METADATA_KEYS = {"priority"}  # non-label keys Streamlabs mixes into the streamlabels map (plus "_id" etc.)
+
+
+def is_label_key(key: str) -> bool:
+    return bool(key) and not key.startswith("_") and key not in METADATA_KEYS
+
+
 def parse_event(payload: dict, *, count_test_events: bool, twitch_relay: bool,
-                gift_memory: dict[str, float] | None = None) -> list[Event | ServerLabels]:
+                gift_memory: dict[str, float] | None = None,
+                ignore_names: set[str] | None = None) -> list[Event | ServerLabels]:
     """Translate one raw socket `event` payload into normalised events.
 
     `gift_memory` (gifter -> expiry timestamp) stops a mass gift ("submysterygift",
     N subs) from also being credited once per recipient "subgift" event.
+    `ignore_names` (lower-cased) drops events from known test names, because the dashboard's
+    test buttons do not always set `isTest`.
     """
     if not isinstance(payload, dict):
         return []
     gift_memory = {} if gift_memory is None else gift_memory
+    ignore_names = ignore_names or set()
     etype = str(payload.get("type", ""))
     target = str(payload.get("for", "") or "")
     msg = payload.get("message")
@@ -62,7 +73,8 @@ def parse_event(payload: dict, *, count_test_events: bool, twitch_relay: bool,
     if etype == "streamlabels":
         data = msg.get("data") if isinstance(msg, dict) else None
         if isinstance(data, dict):
-            return [ServerLabels({str(k): "" if v is None else str(v) for k, v in data.items()})]
+            return [ServerLabels({str(k): "" if v is None else str(v) for k, v in data.items()
+                                  if is_label_key(str(k))})]
         return []
     if etype in IGNORED_TYPES:
         return []
@@ -79,6 +91,10 @@ def parse_event(payload: dict, *, count_test_events: bool, twitch_relay: bool,
             log.info("ignoring Streamlabs TEST %s event (set count_test_events=true to count them)", etype)
             continue
         name = str(item.get("name") or item.get("display_name") or item.get("from") or "").strip()
+        gifter_name = str(item.get("gifter") or "").strip()
+        if name.lower() in ignore_names or gifter_name.lower() in ignore_names:
+            log.info("ignoring %s from %r (listed in ignore_names)", etype, gifter_name or name)
+            continue
         base = dict(source="streamlabs", is_test=is_test, message=str(item.get("message") or ""))
 
         if etype == "donation":
@@ -132,7 +148,8 @@ class StreamlabsSource(threading.Thread):
     """Background thread that keeps a Socket.IO connection open and feeds the queue."""
 
     def __init__(self, token: str, out: queue.Queue, *, count_test_events: bool,
-                 twitch_relay: bool, dump: bool = False, url: str = SOCKET_URL):
+                 twitch_relay: bool, dump: bool = False, url: str = SOCKET_URL,
+                 ignore_names: list[str] | None = None, raw=None):
         super().__init__(name="streamlabs", daemon=True)
         self.token = token
         self.url = url
@@ -140,6 +157,8 @@ class StreamlabsSource(threading.Thread):
         self.count_test_events = count_test_events
         self.twitch_relay = twitch_relay
         self.dump = dump
+        self.ignore_names = {n.strip().lower() for n in (ignore_names or []) if n.strip()}
+        self.raw = raw  # optional RawLog
         self._stop = threading.Event()
         self._sio: socketio.Client | None = None
         self._gift_memory: dict[str, float] = {}
@@ -157,9 +176,12 @@ class StreamlabsSource(threading.Thread):
     def _on_event(self, payload) -> None:
         if self.dump:
             log.info("RAW %s", json.dumps(payload, ensure_ascii=False)[:2000])
+        if self.raw is not None:
+            self.raw.write("streamlabs", payload)
         try:
             for ev in parse_event(payload, count_test_events=self.count_test_events,
-                                  twitch_relay=self.twitch_relay, gift_memory=self._gift_memory):
+                                  twitch_relay=self.twitch_relay, gift_memory=self._gift_memory,
+                                  ignore_names=self.ignore_names):
                 self.out.put(ev)
         except Exception:  # noqa: BLE001
             log.exception("failed to parse Streamlabs event: %r", payload)

@@ -238,3 +238,31 @@ def test_import_legacy_windows_folder(tmp_path):
     # importing twice does not double the history
     st.import_legacy(out)
     assert st.labels(cfg)["all_time_top_donator"] == "Urlove: 26.76 USD"
+
+
+def test_forget_and_reload(tmp_path):
+    st, cfg = make(tmp_path)
+    st.apply(Event(FOLLOW, "Kevin"))
+    st.apply(Event(FOLLOW, "real"))
+    st.apply(Event(SUB_GIFT, "kevin", amount=1))
+    st.apply(Event(SUBSCRIPTION, "reingerclaire2", is_gift=True))
+    st.save()
+    other = LabelState(cfg.state_file)
+    other.load()
+    assert other.forget(["KEVIN", "reingerclaire2"]) == 3
+    other.save()
+    st.reload()
+    lab = st.labels(cfg)
+    assert lab["most_recent_follower"] == "real"
+    assert lab["session_follower_count"] == "1"
+    assert lab["most_recent_sub_gifter"] == "" and lab["session_subscriber_count"] == "0"
+
+
+def test_metadata_keys_scrubbed_from_old_state(tmp_path):
+    st, cfg = make(tmp_path)
+    st.data["server_labels"] = {"_id": "x", "priority": "10", "most_recent_follower": "f"}
+    st.save()
+    st.reload()
+    assert st.data["server_labels"] == {"most_recent_follower": "f"}
+    st.set_server_labels({"_id": "y", "total_cheer_amount": "5"})
+    assert "_id" not in st.labels(cfg) and st.labels(cfg)["total_cheer_amount"] == "5"

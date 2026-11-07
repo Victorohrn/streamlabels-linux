@@ -64,6 +64,8 @@ class Config:
     session_reset_on_start: bool = True
     train_duration: int = 300
     log_level: str = "INFO"
+    raw_log: bool = True
+    ignore_names: list[str] = field(default_factory=lambda: ["Kevin"])
     formats: dict[str, str] = field(default_factory=dict)
     streamlabs: StreamlabsConfig = field(default_factory=StreamlabsConfig)
     twitch: TwitchConfig = field(default_factory=TwitchConfig)
@@ -95,9 +97,11 @@ def load_config(path: Path | None = None) -> Config:
     if "state_file" in raw:
         cfg.state_file = _expand(raw["state_file"])
     for key in ("list_separator", "list_limit", "amount_format", "include_resubs",
-                "session_reset_on_start", "train_duration", "log_level"):
+                "session_reset_on_start", "train_duration", "log_level", "raw_log"):
         if key in raw:
             setattr(cfg, key, raw[key])
+    if "ignore_names" in raw:
+        cfg.ignore_names = [str(x) for x in raw["ignore_names"]]
     cfg.formats = {str(k): str(v) for k, v in raw.get("formats", {}).items()}
 
     sl = raw.get("streamlabs", {})
@@ -138,6 +142,14 @@ session_reset_on_start = true
 # Trains (followtrain_*, subtrain_*, donationtrain_*): events closer together than this many
 # seconds chain into one train; the clock counts down from here after the last event.
 train_duration = 300
+
+# Streamlabs' dashboard test buttons do not always flag their events as tests. Events from these
+# names (case-insensitive) are never counted; "Kevin" is Streamlabs' stock test follower/gifter.
+# Scrub already-counted ones with: streamlabels forget NAME [NAME ...]
+ignore_names = ["Kevin"]
+
+# Keep every raw event in ~/.local/state/streamlabels/events.jsonl (5 MB, rotated once) for debugging.
+raw_log = true
 
 [streamlabs]
 enabled = true

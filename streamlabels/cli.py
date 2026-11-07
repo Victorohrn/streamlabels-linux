@@ -131,6 +131,31 @@ def cmd_reset_session(args) -> int:
     return 0
 
 
+def _poke_daemon(sig) -> int | None:
+    try:
+        pid = int(PID_PATH.read_text().strip())
+        os.kill(pid, sig)
+        return pid
+    except (OSError, ValueError):
+        return None
+
+
+def cmd_forget(args) -> int:
+    """Remove every recorded event from the given names (e.g. dashboard test names)."""
+    cfg = _cfg(args)
+    state = LabelState(cfg.state_file)
+    state.load()
+    n = state.forget(args.names)
+    state.save()
+    pid = _poke_daemon(signal.SIGUSR2)
+    if pid:
+        print(f"removed {n} event(s) from {', '.join(args.names)}; daemon (pid {pid}) reloaded")
+    else:
+        LabelWriter(cfg.output_dir).write_all(state.labels(cfg))
+        print(f"removed {n} event(s) from {', '.join(args.names)}; label files rewritten")
+    return 0
+
+
 def cmd_twitch_login(args) -> int:
     cfg = _cfg(args)
     from .twitch import TwitchAuth, TwitchAuthError
@@ -192,6 +217,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("test", help="write sample values to every label file").set_defaults(fn=cmd_test)
     sub.add_parser("show", help="print current label values").set_defaults(fn=cmd_show)
     sub.add_parser("reset-session", help="start a new session (clears session_* labels)").set_defaults(fn=cmd_reset_session)
+    s = sub.add_parser("forget", help="drop recorded events from the given names (e.g. test alerts)")
+    s.add_argument("names", nargs="+")
+    s.set_defaults(fn=cmd_forget)
     s = sub.add_parser("twitch-login", help="log in to Twitch with a device code")
     s.add_argument("--client-id")
     s.set_defaults(fn=cmd_twitch_login)

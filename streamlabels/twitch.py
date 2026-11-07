@@ -196,12 +196,15 @@ def parse_notification(sub_type: str, ev: dict) -> Event | None:
 class TwitchSource(threading.Thread):
     """EventSub websocket + periodic Helix totals, feeding the daemon queue."""
 
-    def __init__(self, auth: TwitchAuth, out: queue.Queue, *, poll_interval: int = 600, dump: bool = False):
+    def __init__(self, auth: TwitchAuth, out: queue.Queue, *, poll_interval: int = 600, dump: bool = False,
+                 ignore_names: list[str] | None = None, raw=None):
         super().__init__(name="twitch", daemon=True)
         self.auth = auth
         self.out = out
         self.poll_interval = max(60, int(poll_interval))
         self.dump = dump
+        self.ignore_names = {n.strip().lower() for n in (ignore_names or []) if n.strip()}
+        self.raw = raw
         self._stop = threading.Event()
         self._ws: websocket.WebSocket | None = None
         self.connected = False
@@ -298,8 +301,12 @@ class TwitchSource(threading.Thread):
                     continue
                 elif mtype == "notification":
                     sub_type = msg["metadata"].get("subscription_type", "")
+                    if self.raw is not None:
+                        self.raw.write("twitch", msg)
                     ev = parse_notification(sub_type, payload.get("event") or {})
-                    if ev:
+                    if ev and ev.name.lower() in self.ignore_names:
+                        log.info("ignoring %s from %r (listed in ignore_names)", ev.kind, ev.name)
+                    elif ev:
                         self.out.put(ev)
                 elif mtype == "session_reconnect":
                     new_url = payload["session"]["reconnect_url"]

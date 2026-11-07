@@ -68,8 +68,11 @@ This daemon:
    dashboard, same one third-party bots use);
 2. turns every event into label updates and persists them (`~/.local/state/streamlabels/state.json`),
    so "most recent follower" survives restarts;
-3. if Streamlabs pushes a `streamlabels` map, writes those values too and lets them win over
-   its own computed values for the same file name (they have your full account history);
+3. Streamlabs also pushes its own ready-made `streamlabels` map (108 labels, verified with a plain
+   socket token) every time something happens: your full account history, your Streamlabs label
+   templates, totals, `donation_goal`. Those values are written as-is and win over the daemon's own
+   computed values for the same file name. The daemon's own values cover what the map does not
+   (raids, trains, a few extra counts) and keep the folder alive if the map stops coming;
 4. optionally connects straight to Twitch (EventSub websocket + Helix) for follower/sub totals
    and for events even when Streamlabs hiccups.
 
@@ -100,7 +103,10 @@ journalctl --user -u streamlabels -f      # should say "Streamlabs socket connec
 ```
 
 Send a test alert from the Streamlabs dashboard: the journal logs it as an ignored TEST event
-(set `count_test_events = true` to count them while you are setting things up).
+(set `count_test_events = true` to count them while you are setting things up). Some dashboard
+test buttons (gifted subs, the "Kevin" follow) send events *without* the test flag; names in
+`ignore_names` are dropped regardless, and `streamlabels forget NAME ...` scrubs any that got
+through. Streamlabs' own label map never counts tests, so the official labels stay clean either way.
 
 Treat the socket token like a password. It only grants read access to your event stream, but
 anyone who has it can see your tips and followers in real time. Regenerate it in the dashboard
@@ -134,13 +140,20 @@ streamlabels init                write the config template and create folders
 streamlabels test                fill every label file with sample values (for scene layout)
 streamlabels show                print the current value of every label
 streamlabels reset-session       start a new "session" (session_* labels back to zero)
+streamlabels forget NAME [...]   drop recorded events from these names (test alerts that slipped through)
+streamlabels import-legacy [DIR] import history from an existing Stream Labels folder
 streamlabels twitch-login        device-code login for the optional Twitch connection
 streamlabels paths               print config/state/output/pid paths
 ```
 
-`systemctl --user reload streamlabels` also resets the session (it sends SIGUSR1). By default a
-new session starts whenever the daemon starts; set `session_reset_on_start = false` to reset only
-manually, e.g. from a Stream Deck/keybind running `streamlabels reset-session`.
+`systemctl --user reload streamlabels` also resets the session (it sends SIGUSR1; SIGUSR2 makes the
+daemon re-read its state file). By default a new session starts whenever the daemon starts; set
+`session_reset_on_start = false` to reset only manually, e.g. from a Stream Deck/keybind running
+`streamlabels reset-session`. Note that the `session_*` labels Streamlabs itself provides follow
+Streamlabs' idea of a session (it resets them around your stream), not this command.
+
+Every raw event is appended to `~/.local/state/streamlabels/events.jsonl` (5 MB, rotated once) so
+odd payloads can be inspected later; `raw_log = false` turns that off.
 
 ## Optional: talk to Twitch directly
 
@@ -169,9 +182,9 @@ twice (`relay_twitch_events = "auto"`).
 * Values look stale after a crash: the state file is only written after each event; nothing is
   lost except events that arrived while the daemon was down. With Twitch enabled, totals are
   re-polled every `poll_interval` seconds.
-* Run `streamlabels run --dump -v` in a terminal to see every raw payload Streamlabs sends.
-  If you see a `streamlabels` event, Streamlabs is giving you its ready-made label set and those
-  file names (dozens of them) appear in the folder automatically.
+* `streamlabels run --dump -v` in a terminal prints every raw payload; `events.jsonl` keeps them.
+* A label shows a test name such as "Kevin": `streamlabels forget Kevin`, and add the name to
+  `ignore_names` if it keeps coming back.
 
 ## Why not port the official plugin?
 

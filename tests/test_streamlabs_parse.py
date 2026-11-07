@@ -72,3 +72,17 @@ def test_sub_plan_becomes_tier():
     [sub] = P({"type": "subscription", "for": "twitch_account",
                "message": [{"name": "s", "months": 1, "sub_plan": "3000", "sub_type": "sub"}]})
     assert sub.tier == "3000"
+
+
+def test_server_labels_drop_metadata_keys():
+    [sl] = P({"type": "streamlabels", "message": {"data": {"_id": "abc", "priority": 10, "most_recent_follower": "x"}}})
+    assert sl.data == {"most_recent_follower": "x"}
+
+
+def test_ignore_names_is_case_insensitive_and_covers_gifters():
+    names = {"kevin"}
+    assert P({"type": "follow", "for": "twitch_account", "message": [{"name": "Kevin"}]}, ignore_names=names) == []
+    assert P({"type": "subscription", "for": "twitch_account",
+              "message": [{"name": "reingerclaire2", "gifter": "kevin", "sub_type": "subgift"}]}, ignore_names=names) == []
+    [ev] = P({"type": "follow", "for": "twitch_account", "message": [{"name": "Kevina"}]}, ignore_names=names)
+    assert ev.name == "Kevina"

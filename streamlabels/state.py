@@ -107,7 +107,8 @@ class LabelState:
         base["session"].update(data.get("session", {}))
         base["all_time"].update(data.get("all_time", {}))
         base["all_time"]["totals"].update(data.get("all_time", {}).get("totals", {}))
-        base["server_labels"] = dict(data.get("server_labels", {}))
+        base["server_labels"] = {k: v for k, v in data.get("server_labels", {}).items()
+                                 if k and not k.startswith("_") and k != "priority"}
         base["legacy_labels"] = dict(data.get("legacy_labels", {}))
         base["legacy_imported"] = bool(data.get("legacy_imported", False))
         self.data = base
@@ -128,14 +129,35 @@ class LabelState:
             raise
         self.dirty = False
 
+    def reload(self) -> None:
+        """Re-read the state file (used after another process edited it, e.g. `forget`)."""
+        self.data = _empty_state()
+        self.load()
+        self.dirty = False
+
     # ------------------------------------------------------------------ mutation
+    def forget(self, names: list[str]) -> int:
+        """Drop every recorded event from the given names (case-insensitive). Returns count."""
+        wanted = {n.strip().lower() for n in names if n.strip()}
+        removed = 0
+        for bucket in (self.data["session"], self.data["all_time"]):
+            for kind in ("follows", "subs", "gifts", "donations", "bits", "raids"):
+                keep = [r for r in bucket[kind] if str(r.get("name", "")).lower() not in wanted]
+                if bucket is self.data["all_time"]:  # session entries are copies of these
+                    removed += len(bucket[kind]) - len(keep)
+                bucket[kind] = keep
+        if removed:
+            self.dirty = True
+        return removed
+
     def reset_session(self) -> None:
         self.data["session"] = _empty_session()
         self.dirty = True
         log.info("session reset")
 
     def set_server_labels(self, labels: dict[str, str]) -> None:
-        self.data["server_labels"].update({str(k): "" if v is None else str(v) for k, v in labels.items()})
+        self.data["server_labels"].update({str(k): "" if v is None else str(v) for k, v in labels.items()
+                                           if k and not str(k).startswith("_") and k != "priority"})
         self.dirty = True
 
     def seed_totals(self, follower_count: int | None = None, subscriber_count: int | None = None,

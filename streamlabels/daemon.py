@@ -9,8 +9,9 @@ import signal
 import threading
 import time
 
-from .config import PID_PATH, Config
+from .config import PID_PATH, STATE_DIR, Config
 from .events import Event, ServerLabels
+from .rawlog import RawLog
 from .state import LabelState
 from .writer import LabelWriter
 
@@ -44,18 +45,21 @@ class Daemon:
 
     def _install_signals(self) -> None:
         signal.signal(signal.SIGUSR1, lambda *_: self.q.put(("reset_session",)))
+        signal.signal(signal.SIGUSR2, lambda *_: self.q.put(("reload",)))
         for sig in (signal.SIGTERM, signal.SIGINT):
             signal.signal(sig, lambda *_: self.q.put(("stop",)))
 
     def _start_sources(self) -> None:
         cfg = self.cfg
+        raw = RawLog(STATE_DIR / "events.jsonl") if cfg.raw_log else None
         if cfg.streamlabs.enabled:
             if cfg.streamlabs.socket_token:
                 from .streamlabs import SOCKET_URL, StreamlabsSource
                 src = StreamlabsSource(cfg.streamlabs.socket_token, self.q,
                                        count_test_events=cfg.streamlabs.count_test_events,
                                        twitch_relay=cfg.twitch_relay_enabled, dump=self.dump,
-                                       url=os.environ.get("STREAMLABELS_SOCKET_URL", SOCKET_URL))
+                                       url=os.environ.get("STREAMLABELS_SOCKET_URL", SOCKET_URL),
+                                       ignore_names=cfg.ignore_names, raw=raw)
                 src.start()
                 self.sources.append(src)
             else:
@@ -68,7 +72,8 @@ class Daemon:
             except TwitchAuthError as exc:
                 log.error("[twitch] %s; Twitch source disabled", exc)
             else:
-                src = TwitchSource(auth, self.q, poll_interval=cfg.twitch.poll_interval, dump=self.dump)
+                src = TwitchSource(auth, self.q, poll_interval=cfg.twitch.poll_interval, dump=self.dump,
+                                   ignore_names=cfg.ignore_names, raw=raw)
                 src.start()
                 self.sources.append(src)
         if not self.sources:
@@ -98,6 +103,9 @@ class Daemon:
                 self.state.seed_totals(**item[1])
             elif cmd == "reset_session":
                 self.state.reset_session()
+            elif cmd == "reload":
+                self.state.reload()
+                log.info("state reloaded from disk")
             elif cmd == "stop":
                 self._stopping = True
         else:
